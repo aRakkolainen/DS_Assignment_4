@@ -10,7 +10,9 @@ const server = net.createServer((socket) => {
     sockets.push(socket);
     console.log("New client connected");
     socket.on('data', data =>{
-        broadcast(data, socket);
+        if (data.includes("1")) {
+            broadcast(data, socket);
+        }
         let text = data.toString(); 
         let user = text.split(" ");
         sockets[sockets.indexOf(socket)].name = user[0];

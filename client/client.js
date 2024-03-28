@@ -22,8 +22,13 @@ waitForUsername.then(username => {
     socket.on("connect", () => {
         let text = username + " has joined the chat.";
         socket.write(text);
+        console.log("What do you want to do?")
+        console.log("1) Send message to everyone")
+        console.log("2) Send private message to someone")
+        console.log("0) Quit")
     })
-    const waitForDecision = new Promise(resolve => {
+
+    /*const waitForDecision = new Promise(resolve => {
         console.log("What do you want to do?")
         console.log("1) Send message to everyone")
         console.log("2) Send private message to someone")
@@ -31,9 +36,9 @@ waitForUsername.then(username => {
         readLine.question("Give your choice: ", choice => {
             resolve(choice)
         })
-    })
+    })*/
 
-    waitForDecision.then(choice => {
+   /* waitForDecision.then(choice => {
         if (choice === "1") {
             console.log("Sending message to everyone");
             readLine.on('line', data => {
@@ -57,21 +62,33 @@ waitForUsername.then(username => {
                 socket.setTimeout(1000);
             })
         }
-    })
-        /*readLine.on('line', data => {
-            if(data === 'quit') {
-                let text = username +  " has left the chat.";
-                socket.write(text);
-                socket.setTimeout(1000);
-            } else {
-                let text = username + ": " + data; 
-                socket.write(text);
-            }
-        })*/
+    })*/
+    readLine.on('line', data => {
+        if (data === "1") {
+            console.log("Opening global chat..")
+            let text = "1" + username + ": " + data; 
+            socket.write(text);
+        } else if(data === 0) {
+            let text = username +  " has left the chat.";
+            socket.write(text);
+            socket.setTimeout(1000);
+        } else if(data === 2) {
+            console.log("Who you want to send message to?")
+            const waitForRecipientName = new Promise(resolve => {
+                readLine.question("Give name who you want to sent message to: ", name => {
+                    resolve(name)
+                })
+            })
+
+            waitForRecipientName.then(name => {
+                socket.write(name)
+            })
+        }
+        })
 
 
     socket.on('data', data => {
-        console.log("%s", data);
+        console.log("\n%s", data);
     })
 
     socket.on('timeout', () => {

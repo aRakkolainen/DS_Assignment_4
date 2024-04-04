@@ -29,22 +29,21 @@ const server = net.createServer((socket) => {
                 socket.write("Username is taken.")
             } else {
                 clientNames.push(username);
+                socket.option = null; 
                 clientSockets.push(socket);
                 socket.write("Username accepted.");
                 //broadcast(message, socket);
             }
         } else {
             let content = message.split("-");
-            let user = content[1].split(":");
-            let username = user[0];
-            let messageText = content[1];
-            option = content[0];
-            //let sender = content[1];
-            //console.log(content[0]);
-            //broadcast(`${username} has joined the chat.`, socket);
-            
+            let username = null; 
+            option = content[0];    
             switch(option) {
                 case "1":
+                    socket.option = "1";
+                    let user = content[1].split(":");
+                    username = user[0];
+                    let messageText = content[1];
                     if (!content[1].includes(": 1") && firstTime == false){
                         broadcast(`${username} has joined the chat.`, socket);
                         broadcast(messageText, socket);
@@ -54,15 +53,22 @@ const server = net.createServer((socket) => {
                     }
                     break; 
                 case "2":
-                    let contentInfo = message.split(":");
-                    let sender = contentInfo[0].split("-")
-                    let senderName = sender[1]; 
-                    let recipient = contentInfo[1]; 
-                    let text = senderName + ": " + contentInfo[2];
-                    sendPrivateChat(text, socket, recipient);
+                    let info = content[1].split(":");
+                    socket.option="2";
+                    let senderName = info[0];
+                    let recipient = info[1];
+                    if (info[1]) {
+                        openPrivateChat(senderName, recipient, socket);
+                    }
                     break;
                 case "0":
-
+                    if (message.includes("has left the chat.")) {
+                        let info = content[1].split(" ");
+                        username = info[0];
+                        socket.write(`${username} has left the chat.`);
+                        closeClientConnection(socket)
+                    }
+                    
                 }
             
             
@@ -70,26 +76,18 @@ const server = net.createServer((socket) => {
         }
     })
     socket.on('error', err =>  {
-        console.log("A client has disconnected");
+        console.log("A client has disconnected due error: " + err);
     })
 
-    socket.on('end', () => {
-        console.log('A client left.');
-        clientNames.delete(username);
-        clientSockets.delete(socket);
-    })
+    socket.on('end', () => closeClientConnection(socket))
+
 })
 server.listen(8000, () => {
     console.log("Listening to port 8000");
 });
 
-/*function giveOptions() {
-    
-}*/
-
 
 function findRecipient(recipientName) {
-    console.log(recipientName);
     if (recipientName && recipientName !== "2") {
         let recipientIndex = clientNames.indexOf(recipientName); 
         if (recipientIndex == -1) {
@@ -110,22 +108,72 @@ function broadcast(message, socketSent) {
         console.log("sending message..")
         clientSockets.forEach(socket => {
             //if(socket !== socketSent) {
-            if (socket !== socketSent) {
+            if (socket !== socketSent && socket.option == "1") {
                 socket.write(message);
                 //globalChats.push({sender: sender, message: message})
             }
         })
     }
 }
+function loadPrivateChats(sender, recipientName) {
+    let chats = privateChats.filter((msg) => msg.id === sender+recipientName || msg.id === recipientName+sender)
+    console.log(chats)
+}
 
-
-function sendPrivateChat(message, senderSocket, recipientName){
+function openPrivateChat(senderName, recipientName, senderSocket){
     let recipientSocket = null;
+    let firstConnect = true; 
+    let chatHistory = null; 
     recipientSocket= findRecipient(recipientName);
-    console.log(recipientSocket);
+    loadPrivateChats(senderName, recipientName);
+    //Checking if recipient exists and has chosen option 2
     if (recipientSocket) {
-        recipientSocket.write(message);
-    } else {
-        senderSocket.write("Recipient not found!");
+        //Checking if recipient is online, then we can forward messages directly!
+        senderSocket.on("data", (data) => {
+            chatHistory = loadPrivateChats(senderName, recipientName);
+            let text = data.toString("utf-8").trim();
+            let tempText = text.split(":");
+            let msg = tempText[2];
+            let finalMsg = senderName + ": " + msg;
+            if (recipientSocket.option === "2") {
+                if(firstConnect) {
+                    senderSocket.write("You joined private chat where both members of chat are online!");
+                    if (chatHistory.length > 0) {
+                    chatHistory.forEach((chat) => {
+                        senderSocket.write(chat.msg);
+                        recipientSocket.write(chat.msg);
+                    })
+                }
+                    firstConnect = false; 
+                } else {
+                    recipientSocket.write(finalMsg);
+                    privateChats.push({id: senderName+recipientName, msg: finalMsg}); 
+                }
+            } else {
+                if(firstConnect) {
+                    senderSocket.write("You joined private chat where only you are online, but you can still send messages");
+                    firstConnect = false; 
+                } else {
+                    privateChats.push({id: senderName+recipientName, msg: finalMsg}); 
+                }
+            }
+        })
+        
+    } 
+    else {
+        senderSocket.write("Recipient not found, cannot open private chat");
+    }
+    
+}
+
+
+function closeClientConnection(socket) {
+    let index = clientSockets.indexOf(socket);
+    if (index != -1) {
+        //client exists, we can delete it from usernames
+        clientNames.splice(index, 1);
+        clientSockets.splice(index, 1);
+        console.log('A client left.');
+
     }
 }

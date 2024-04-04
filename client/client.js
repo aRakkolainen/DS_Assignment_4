@@ -29,34 +29,34 @@ waitForUsername.then((username) => {
         console.log("Write number of your choice anytime in the chat")
     });
     let option = null; 
-    readLine.on('line', data => {
+    let waitForRecipientName;
+    readLine.on('line', async (data) => {
         if (data === "1") {
             option = 1;
             console.log("Joining global chat")
         } else if(data === "2") {
             option = 2;
-            console.log("Starting private chat");
-            //socket.write("2");
+            //console.log("Starting private chat");
+            waitForRecipientName = new Promise((resolve) => {
+                readLine.question("Enter the name of person you want to send private message: ", recipient => {
+                    resolve(recipient)
+                });
+            })
         } else if(data === "0") {
             option = 0; 
         }
         if (option == 1) {
             socket.write(`1-${username}: ${data}`)
         } else if(option == 2) {
-            socket.write(`2-${username}: ${data}`)
-            const waitForRecipientName = new Promise((resolve) => {
-                readLine.question("Send your message in form: recipient: your message", recipient => {
-                    resolve(recipient)
-                });
-            })
-            waitForRecipientName.then((recipient) =>
-                socket.write(`2-${username}:${recipient}`)
+            //socket.write(`2-${username}: ${data}`)
+            waitForRecipientName.then((recipient) => {
+                socket.write(`2-${username}:${recipient}:${data}`)
+            }
             )
         } else if (option == 0) {
-            socket.write(`${username} has left the chat.`)
+            socket.write(`0-${username} has left the chat.`)
             socket.setTimeout(1000);
         }
-        //socket.write(`${username}: ${data}`)
     })
 
     socket.on('data', data => {

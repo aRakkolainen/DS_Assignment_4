@@ -116,7 +116,7 @@ function broadcast(message, socketSent) {
     }
 }
 
-//Partially based on this ChatServer tutorial: https://cs.lmu.edu/~ray/notes/jsnetexamples/
+//Partially based on this ChatServer tutorial: https://cs.lmu.edu/~ray/notes/jsnetexamples/ and also the WittCode tutorial
 function sendPrivateChat(message, senderName, senderSocket, recipientSocket){
     //Checking if recipient has chosen option 2 (Currently it is possible only send messages if both client have opened the private chat)
     if(recipientSocket.option == "2" && message !== "2") {

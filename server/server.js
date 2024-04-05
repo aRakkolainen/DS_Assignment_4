@@ -1,27 +1,22 @@
 //Based on this tutorial: https://tnickel.de/2020/03/29/2020-03-nodejs-http-server-using-the-net-module/
-// Hint: https://www.youtube.com/watch?v=4yPnp4k8VMA
+//Help is taken from this tutorial on how to implement TCP in Node.js by Engineer Man: https://www.youtube.com/watch?v=4yPnp4k8VMA
 //This program is based on this tutorial by WittCode: https://www.youtube.com/watch?v=-rVxORKWzv0
-//Server is based on this ChatServer tutorial: https://cs.lmu.edu/~ray/notes/jsnetexamples/
+//Server is partially based on this ChatServer tutorial: https://cs.lmu.edu/~ray/notes/jsnetexamples/
 // and the documentation of Node.js
 
 const net = require('node:net');
 let clientSockets = [];
 let clientNames = [];
-let globalChats = [];
-let privateChats = []; 
-
-
+//Based on WittCode example: https://www.youtube.com/watch?v=-rVxORKWzv0
 const server = net.createServer((socket) => {
-    //socket.write("Give your username to enter the chat: ");
     console.log("New client connected");
-    let client = null;
-    let recipient = null;
     let option = null; 
     let firstTime = false; 
     socket.on('data', (data) =>{
         const message = data.toString("utf-8").trim();
         //splitting the username part
         //Checking if name is already defined and is it already reserved to be this specific one
+        socket.name = null;
         if (message.includes("has joined the chat.")) {
             let user = message.split(" ");
             let username = user[0];
@@ -30,9 +25,9 @@ const server = net.createServer((socket) => {
             } else {
                 clientNames.push(username);
                 socket.option = null; 
+                socket.name = username;
                 clientSockets.push(socket);
                 socket.write("Username accepted.");
-                //broadcast(message, socket);
             }
         } else {
             let content = message.split("-");
@@ -56,9 +51,19 @@ const server = net.createServer((socket) => {
                     let info = content[1].split(":");
                     socket.option="2";
                     let senderName = info[0];
-                    let recipient = info[1];
+                    let recipientName = info[1];
+                    let recipientSocket = null; 
                     if (info[1]) {
-                        openPrivateChat(senderName, recipient, socket);
+                        recipientSocket = findRecipient(recipientName);
+                        let msg = info[2];
+                        if (recipientSocket) {
+                            if(msg !== "") {
+                                console.log("sending message..");
+                                sendPrivateChat(msg, senderName, socket, recipientSocket);
+                            }
+                        } else {
+                            socket.write("Client not connected, wait for connection or choose other option!")
+                        }
                     }
                     break;
                 case "0":
@@ -70,9 +75,6 @@ const server = net.createServer((socket) => {
                     }
                     
                 }
-            
-            
-
         }
     })
     socket.on('error', err =>  {
@@ -91,14 +93,14 @@ function findRecipient(recipientName) {
     if (recipientName && recipientName !== "2") {
         let recipientIndex = clientNames.indexOf(recipientName); 
         if (recipientIndex == -1) {
-        return null;
-    } else {
-        return clientSockets[recipientIndex]
+            return null;
+        } else {
+            return clientSockets[recipientIndex]
     }
     }
 
 }
-
+//Based on WittCode example: https://www.youtube.com/watch?v=-rVxORKWzv0 and this is used to sent message to everyone connected to global chat
 function broadcast(message, socketSent) {
     //What if here is checked whether the message is sent to everyone or not..
     if (message.toString() === "quit") {
@@ -107,70 +109,30 @@ function broadcast(message, socketSent) {
     } else {
         console.log("sending message..")
         clientSockets.forEach(socket => {
-            //if(socket !== socketSent) {
             if (socket !== socketSent && socket.option == "1") {
                 socket.write(message);
-                //globalChats.push({sender: sender, message: message})
             }
         })
     }
 }
-function loadPrivateChats(sender, recipientName) {
-    let chats = privateChats.filter((msg) => msg.id === sender+recipientName || msg.id === recipientName+sender)
-    console.log(chats)
-}
 
-function openPrivateChat(senderName, recipientName, senderSocket){
-    let recipientSocket = null;
-    let firstConnect = true; 
-    let chatHistory = null; 
-    recipientSocket= findRecipient(recipientName);
-    loadPrivateChats(senderName, recipientName);
-    //Checking if recipient exists and has chosen option 2
-    if (recipientSocket) {
-        //Checking if recipient is online, then we can forward messages directly!
-        senderSocket.on("data", (data) => {
-            chatHistory = loadPrivateChats(senderName, recipientName);
-            let text = data.toString("utf-8").trim();
-            let tempText = text.split(":");
-            let msg = tempText[2];
-            let finalMsg = senderName + ": " + msg;
-            if (recipientSocket.option === "2") {
-                if(firstConnect) {
-                    senderSocket.write("You joined private chat where both members of chat are online!");
-                    if (chatHistory.length > 0) {
-                    chatHistory.forEach((chat) => {
-                        senderSocket.write(chat.msg);
-                        recipientSocket.write(chat.msg);
-                    })
-                }
-                    firstConnect = false; 
-                } else {
-                    recipientSocket.write(finalMsg);
-                    privateChats.push({id: senderName+recipientName, msg: finalMsg}); 
-                }
-            } else {
-                if(firstConnect) {
-                    senderSocket.write("You joined private chat where only you are online, but you can still send messages");
-                    firstConnect = false; 
-                } else {
-                    privateChats.push({id: senderName+recipientName, msg: finalMsg}); 
-                }
+//Partially based on this ChatServer tutorial: https://cs.lmu.edu/~ray/notes/jsnetexamples/
+function sendPrivateChat(message, senderName, senderSocket, recipientSocket){
+    //Checking if recipient has chosen option 2 (Currently it is possible only send messages if both client have opened the private chat)
+    if(recipientSocket.option == "2" && message !== "2") {
+        clientSockets.forEach(socket => {
+            //if(socket !== socketSent) {
+            if (socket !== senderSocket && socket.option == "2" && socket == recipientSocket) {
+                socket.write(senderName + ": " + message);
             }
         })
-        
-    } 
-    else {
-        senderSocket.write("Recipient not found, cannot open private chat");
     }
-    
 }
-
 
 function closeClientConnection(socket) {
     let index = clientSockets.indexOf(socket);
     if (index != -1) {
-        //client exists, we can delete it from usernames
+        //client exists, we can delete it from usernames and sockets
         clientNames.splice(index, 1);
         clientSockets.splice(index, 1);
         console.log('A client left.');
